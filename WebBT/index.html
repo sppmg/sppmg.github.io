@@ -14,26 +14,243 @@
 
 
 
-<button id="the-button">Click me</button>
-    
+<button id="button">Connect</button>
+<button id="button_dis">disconnect</button>
 <script>
 
-const button = document.querySelector('#the-button');
-button.addEventListener('click', function() {
-//     var a = navigator.bluetooth ;
-//     console.log(a);
-    navigator.bluetooth.requestDevice({
-//         filters: [{
-//             services: ['49535343-fe7d-4ae5-8fa9-9fafd205e455']
-//         }]
-        acceptAllDevices: true
-    }).then(device => {
-        document.getElementById("msg").innerHTML = 'Got device: '+ device.name;
+// const button = document.querySelector('#the-button');
+// button.addEventListener('click', function() {
+//     navigator.bluetooth.requestDevice({
+//         acceptAllDevices: true
+//     }).then(device => {
+//         document.getElementById("msg").innerHTML = 'Got device: '+ device.name;
+//         console.log(device);
+//         console.log('Got device:', device.name);
+//         console.log('id:', device.id);
+//     });
+// });
+
+// const button = document.querySelector('#the-button');
+// button.addEventListener('click', requestDev() );
+
+// ub == uint8 buffer
+function Uint32(val){
+    typedvar = new Uint32Array(1) ;
+    typedvar[0] = val ;
+    return typedvar ;
+}
+
+var ub_length = 100e3 ;
+var ub = new Uint8Array(new ArrayBuffer(ub_length));
+var ub_p = new Uint32(0) ;
+var n_notif = 0 ; // todo: use Uint32
+
+
+var t0 = 0;     // start time
+var t1 = 0;     // end time
+var day_t0 = new Date().getTime() ;  // start time with date, unit = ms
+var t_notif_this = 0 ;  // notif time
+var t_notif_last = 0 ;
+var t_byte_interval = 60 // unit = ms
+
+// ble_notif 為紀錄各notif接收時間的物件
+var ble_notif = {
+    ub_end : new Uint32Array(new ArrayBuffer(ub_length/50)),    // notif end index in data buffer (ub), max~ 4GB
+    t      : new Float64Array(new ArrayBuffer(ub_length/50)),  // time for notif
+    end    : -1 ,        // last index of notif
+    proced : 0 ,                                               // index of notif for processed
+    append : function (in_ub_end, in_t){
+        ble_notif.end++ ;
+        ble_notif.ub_end[ble_notif.end] = in_ub_end ;
+        ble_notif.t[ble_notif.end] = in_t ;
+    }
+};
+
+// data 負責儲存解析後資料（spo2, ... ） 以及解析原始資料流(parse)
+var data = {
+    spo2: new Uint8Array(new ArrayBuffer(ub_length/5)),
+    wave: new Uint8Array(new ArrayBuffer(ub_length/5)),
+    pi:   new Uint8Array(new ArrayBuffer(ub_length/5)),
+    pr:   new Uint8Array(new ArrayBuffer(ub_length/5)),
+    time: new Float64Array(new ArrayBuffer(ub_length/50)),
+    data_num: 0 ,  // number of data set
+    data_t_num: 0 ,  // number of data set
+    data_num_in_notif: 0 , // count data number in last notif
+    parse_start : new Uint32(0) , // start point for ub (data buffer)
+    parse: function (){
+        var data_interval ;
+        //databuf = concatBuffers( databuf, this.raw_old);
+        //var num_databuf = databuf.byteLength;
+        //var i=0;
+
+        //app.status(num_databuf);
+        while (ub_p[0] - data.parse_start[0] > 5){
+
+            if ( ( (ub[data.parse_start[0] ]   & 0x80) != 0 ) &&
+                 ( (ub[data.parse_start[0] +5] & 0x80) != 0 ) &&
+                 ( (ub[data.parse_start[0] +1] & 0x80) == 0 ) &&
+                 ( (ub[data.parse_start[0] +2] & 0x80) == 0 ) &&
+                 ( (ub[data.parse_start[0] +3] & 0x80) == 0 ) &&
+                 ( (ub[data.parse_start[0] +4] & 0x80) == 0 )
+               ){
+                data.spo2[data.data_num] = ub[data.parse_start[0] +4] ;
+                data.wave[data.data_num] = ub[data.parse_start[0] +1] ;
+                data.pi[data.data_num] = ( ub[data.parse_start[0] ] & 0x0F ) ;
+                data.pr[data.data_num] = ( ub[data.parse_start[0] +3] | ((ub[data.parse_start[0] +2] & 0x40) << 1 ) );
+
+                console.log("dbg = " + data.parse_start[0]  + "/" + ble_notif.end + "/" + ble_notif.proced );
+                data.data_num_in_notif++ ;
+                if(ble_notif.proced +1 > ble_notif.end){
+                    console.log("dbg, error, " + "\n" +
+                        "data_num = " + data.data_num + "\n" +
+                        "ble_notif.end = " + ble_notif.end + "\n" +
+                        "ble_notif.ub_end = " + ble_notif.ub_end.subarray(0,ble_notif.end+1)
+                    )
+                }
+
+                if( data.parse_start[0] +5 >= ble_notif.ub_end[ ble_notif.proced +1 ] ){
+
+                    // data.data_num_in_notif++ ;
+                    data_interval = ( ble_notif.t[ ble_notif.proced+1 ] - ble_notif.t[ ble_notif.proced ] ) / data.data_num_in_notif ;
+                    console.log("data_interval = " + data_interval);
+                    // generate time stamp in a notif
+                    for( var i = data.data_num - data.data_t_num -1 ; i >= 0 ; i--){
+                        console.log("dbg2 = " + (data.data_num - i) ) ;
+                        data.time[data.data_num - i ] = ble_notif.t[ ble_notif.proced +1 ] - data_interval * i ;
+
+                        line_wave.append(day_t0 + data.time[data.data_num - i] , data.wave[data.data_num - i]) ;
+                        // console.log(data.time[data.data_num - i]);
+                    }
+                    data.data_t_num = data.data_num ;
+                    data.data_num_in_notif = 0 ;
+                    ble_notif.proced++ ;
+                } //else{
+                    //data.data_num_in_notif++ ;
+                //}
+
+                // line_wave.append(day_t0 + data.parse_start[0] * t_byte_interval , data.wave[data.data_num]) ;
+
+                data.data_num++ ;
+                data.parse_start[0] += 5 ;
+            }else{
+                data.parse_start[0]++ ;
+            }
+        }
+        //this.raw_old = databuf.subarray(i) ;
+    }
+};
+
+// ------------------ BT -------------------
+document.querySelector('#button').addEventListener('click', function(event) {
+//     event.stopPropagation();
+//     event.preventDefault();
+
+    if (isWebBluetoothEnabled()) {
+      onStartButtonClick();
+    }
+  });
+
+document.querySelector('#button_dis').addEventListener('click', function(event) {
+//     event.stopPropagation();
+//     event.preventDefault();
+    disconnect();
+
+  });
+
+function isWebBluetoothEnabled() {
+if (navigator.bluetooth) {
+    return true;
+} else {
+    console.log('Web Bluetooth API is not available.\n' +
+        'Please make sure the "Experimental Web Platform features" flag is enabled.');
+    return false;
+}}
+
+
+var serviceUuid = "49535343-fe7d-4ae5-8fa9-9fafd205e455",
+characteristicUuid = "49535343-1e4d-4bd9-ba61-23c647249616" ;
+
+// serviceUuid = parseInt(serviceUuid);
+// characteristicUuid = parseInt(characteristicUuid);
+
+console.log('uuids = ', serviceUuid , "," , characteristicUuid);
+var myCharacteristic;
+
+async function onStartButtonClick(){
+//     let filters = [];
+    let options = {};
+    options.acceptAllDevices = true;
+    options.optionalServices = [serviceUuid];
+//     options.filters = filters;
+    try{
+        const device = await navigator.bluetooth.requestDevice(options);
+        device.addEventListener('gattserverdisconnected', onDisconnected);
         console.log(device);
         console.log('Got device:', device.name);
         console.log('id:', device.id);
-    });
-});
+        
+        console.log('Connecting to GATT Server...');
+        const server = await device.gatt.connect();
+
+        console.log('Getting Service...');
+        const service = await server.getPrimaryService(serviceUuid);
+
+        console.log('Getting Characteristic...');
+        myCharacteristic = await service.getCharacteristic(characteristicUuid);
+
+        myCharacteristic.addEventListener('characteristicvaluechanged',
+            handleNotifications);
+        await myCharacteristic.startNotifications();
+        console.log('> Notifications started');
+    } catch(error) {
+        console.log('Argh! ' + error);
+    }
+}
+
+async function disconnect(){
+    await myCharacteristic.stopNotifications();
+    onDisconnected();
+}
+
+function onDisconnected(event) {
+  // Object event.target is Bluetooth Device getting disconnected.
+  console.log('> Bluetooth Device disconnected');
+}
+
+var tmp_count=0;
+
+async function handleNotifications(event) {
+    // event.target.timeStamp
+    // event.target.value.buffer
+    // event.target.value.buffer.toString()
+    //console.log(event);
+    tmp_count++;
+    console.log(tmp_count);
+//     var databuf = new Uint8Array(event.target.value.buffer);
+// 
+//     if (ub_p[0] + databuf.byteLength < ub_length){
+//             ub.set(databuf, ub_p[0]);
+//             ub_p[0] += databuf.byteLength ;
+//     }
+// 
+//     if (ub_p[0] > 200){
+//         console.log('Stopping Notifications...');
+//         await myCharacteristic.stopNotifications();
+//         console.log('> Notifications stopped');
+//         var getdatabuf =  ub.subarray(0,ub_p[0]) ;
+//         console.log('> ' + getdatabuf.byteLength + " == " + getdatabuf.toString(16));
+//     }else{
+//         console.log(ub_p[0]);
+//     }
+  // Convert raw data bytes to hex values just for the sake of showing something.
+  // In the "real" world, you'd use data.getUint8, data.getUint16 or even
+  // TextDecoder to process raw data bytes.
+//   for (let i = 0; i < value.byteLength; i++) {
+//     a.push('0x' + ('00' + value.getUint8(i).toString(16)).slice(-2));
+//   }
+//   console.log('> ' + a.join(' '));
+     
+}
 
 </script>
 </body>
