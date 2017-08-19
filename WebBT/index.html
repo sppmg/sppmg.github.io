@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-</html>
+</head>
 <body>
 
 <h1>Web BT test</h1>
@@ -224,24 +224,24 @@ async function handleNotifications(event) {
     // event.target.value.buffer
     // event.target.value.buffer.toString()
     //console.log(event);
-    tmp_count++;
-    console.log(tmp_count);
-//     var databuf = new Uint8Array(event.target.value.buffer);
-// 
-//     if (ub_p[0] + databuf.byteLength < ub_length){
-//             ub.set(databuf, ub_p[0]);
-//             ub_p[0] += databuf.byteLength ;
-//     }
-// 
-//     if (ub_p[0] > 200){
-//         console.log('Stopping Notifications...');
-//         await myCharacteristic.stopNotifications();
-//         console.log('> Notifications stopped');
-//         var getdatabuf =  ub.subarray(0,ub_p[0]) ;
-//         console.log('> ' + getdatabuf.byteLength + " == " + getdatabuf.toString(16));
-//     }else{
-//         console.log(ub_p[0]);
-//     }
+//     tmp_count++;
+//     console.log(tmp_count);
+    var databuf = new Uint8Array(event.target.value.buffer);
+
+    if (ub_p[0] + databuf.byteLength < ub_length){
+            ub.set(databuf, ub_p[0]);
+            ub_p[0] += databuf.byteLength ;
+    }
+
+    if (ub_p[0] > 200){
+        console.log('Stopping Notifications...');
+        await myCharacteristic.stopNotifications();
+        console.log('> Notifications stopped');
+        var getdatabuf =  ub.subarray(0,ub_p[0]) ;
+        console.log('> ' + getdatabuf.byteLength + " == " + getdatabuf.toString(16));
+    }else{
+        console.log(ub_p[0]);
+    }
   // Convert raw data bytes to hex values just for the sake of showing something.
   // In the "real" world, you'd use data.getUint8, data.getUint16 or even
   // TextDecoder to process raw data bytes.
