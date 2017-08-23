@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html><head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FPS test of cam</title>
+  <script type="text/javascript" src="smoothie.js"></script>
+<!--   <script src="http://smoothiecharts.org/smoothie.js"></script> -->
+</head><body>
+<h1>FPS test of cam</h1>
+
+
+<p>Click "start" button.</p>
+
+<!--<p> Ref: <a href="https://www.html5rocks.com/en/tutorials/getusermedia/intro/">https://www.html5rocks.com/en/tutorials/getusermedia/intro/</a></p>-->
+
+<!--<input type="file" accept="image/*;capture=camera">
+<input type="file" accept="video/*;capture=camcorder">
+<input type="file" accept="audio/*;capture=microphone">-->
+
+<button id="video_ctrl" class="sexyButton">start</button><br/>
+
+<!--hidden autoplay-->
+<video id="video" width="0" height="0" hidden ></video>
+<canvas id="canvas" width="0" height="0" hidden ></canvas>
+
+<br/>
+<!--<button id="snap" class="sexyButton">Snap Photo</button>
+<br/>-->
+<!--<canvas id="canvasz" width="0" height="0" hidden></canvas><br/>-->
+<canvas id="monitor" width="300" height="100"  ></canvas><br/>
+<p id=msg></p>
+<p id=msg-dev></p>
+<script>
+
+function fps() {
+    this.data= new Float64Array(100) ;
+    this.ptr = 0 ;
+    this.len = 0 ;
+    this.pushData = (d) => {
+        this.data[this.ptr]=d ;
+        this.ptr++;
+        if(this.len < 100) {this.len++ ;}
+        if(this.ptr > 99 ) {this.ptr=0 ;}
+    } ;
+    this.avg = () => {
+        let sum = 0 ;
+        for(var i=0; i < this.len; i++){
+            sum += this.data[i] ;
+        }
+        return sum/this.len ;
+    } ;
+}
+
+var fps_canvas = new fps ;
+var fps_video = new fps ;
+
+// 效能測試： videoSize 會影響<video>大小， 但仍然是全解析畫面縮小。
+// 主要影響還是在計算的矩陣上。
+// rebin 無差
+
+
+// https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Pixel_manipulation_with_canvas#Getting_the_pixel_data_for_a_context
+// https://www.safaribooksonline.com/library/view/html5-canvas/9781449308032/ch04s08.html
+
+// Put event listeners into place
+var videoSize=[200, 200];// 80,60
+var skip_loop = false ;
+document.getElementById('video').width=videoSize[0];
+document.getElementById('video').height=videoSize[1];
+document.getElementById('canvas').width=videoSize[0];
+document.getElementById('canvas').height=videoSize[1];
+// document.getElementById('canvasz').width=videoSize[0];
+// document.getElementById('canvasz').height=videoSize[1];
+
+var t0 = 0;     // start time
+var t = 0;
+var t_old = 0;
+var day_t0 = new Date().getTime() ;  // start time with date, unit = ms
+
+
+window.addEventListener("DOMContentLoaded", function() {
+    // Grab elements, create settings, etc.
+    var canvas = document.getElementById('canvas');
+    var context = canvas.getContext('2d');
+    var video = document.getElementById('video');
+    var mediaConfig =  {
+        audio: false ,
+        video: {
+            //facingMode: "user" , // prefer the front camera
+            //frameRate: { min: 30 },
+            facingMode: "environment" , // rear camera
+            width: { ideal: 240 },
+            height: { ideal: 320 }
+        }
+            
+    };
+    var pixel = context.getImageData(0, 0, 1, 1);
+    var errBack = function(e) {
+        console.log('An error has occurred!', e)
+    };
+
+    // List cameras and microphones.
+
+    navigator.mediaDevices.enumerateDevices()
+    .then(function(devices) {
+    var s ;
+    devices.forEach(function(device) {
+        s += device.kind + ": " + device.label +
+       " id = " + device.deviceId + "</br>";
+    });
+    document.getElementById("msg-dev").innerHTML = s ;
+    })
+    .catch(function(err) {
+    console.log(err.name + ": " + err.message);
+    });
+    
+    // Put video listeners into place
+    if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia(mediaConfig).then(function(stream) {
+            video.src = window.URL.createObjectURL(stream);
+            video.play();
+        });
+        console.log(video)
+    }
+
+    /* Legacy code below! */
+    else if(navigator.getUserMedia) { // Standard
+        navigator.getUserMedia(mediaConfig, function(stream) {
+            video.src = stream;
+            video.play();
+        }, errBack);
+    } else if(navigator.webkitGetUserMedia) { // WebKit-prefixed
+        navigator.webkitGetUserMedia(mediaConfig, function(stream){
+            video.src = window.webkitURL.createObjectURL(stream);
+            video.play();
+        }, errBack);
+    } else if(navigator.mozGetUserMedia) { // Mozilla-prefixed
+        navigator.mozGetUserMedia(mediaConfig, function(stream){
+            video.src = window.URL.createObjectURL(stream);
+            video.play();
+        }, errBack);
+    }
+
+    var rec_timer = {};
+    var data_avg_old = [0, 0, 0] ;
+    var t_old_video = 0;
+    
+    function rec(){
+//         document.getElementById("msg").innerHTML = "play" ;
+        //if(video.paused){return;}
+        
+        let w = videoSize[0]*.80 ; // videoSize[0]/10 ;
+        let h = videoSize[1]*.80 ; // videoSize[1]/10 ;
+        let x = videoSize[0]/2 - w/2 ;
+        let y = videoSize[1]/2 - h/2 ;
+        let rebin = 10 ;
+//         w=1;
+//         h=1;
+        document.getElementById('canvas').width  = w;
+        document.getElementById('canvas').height = h;
+        context.drawImage(video, 0,0,videoSize[0],videoSize[1]);
+        //context.drawImage(video, x,y,w,h);
+
+        t_old = t;
+        t = performance.now();
+        fps_canvas.pushData( 1e3/(t-t_old) ) ;
+                
+        let data = context.getImageData(x,y,w,h).data
+        let pixel_totel = data.length/4 ;
+        let tmp_data_sum=[0, 0, 0]; // RGB
+        let data_avg = [0, 0, 0] ;
+        
+        if(skip_loop){
+            data_avg = 1 ;
+        }else{
+            for(let n_pixel=0; n_pixel < pixel_totel ; n_pixel += rebin){
+                tmp_data_sum[0] += data[n_pixel*4] ;    // R
+                tmp_data_sum[1] += data[n_pixel*4+1] ;  // G
+                tmp_data_sum[2] += data[n_pixel*4+2] ;  // B
+            }
+            data_avg_rgb = [tmp_data_sum[0]/(pixel_totel/rebin),
+                            tmp_data_sum[1]/(pixel_totel/rebin),
+                            tmp_data_sum[2]/(pixel_totel/rebin)] ;
+            data_avg = (data_avg_rgb[0] + data_avg_rgb[1] + data_avg_rgb[2]) /3 ;
+        }
+        if(data_avg != data_avg_old){
+            data_avg_old = data_avg;
+            fps_video.pushData( 1e3/(t-t_old_video) ) ;
+            t_old_video = t
+        }
+        document.getElementById("msg").innerHTML =
+            "data len = " + data.length + "<br/>" +
+            "data avg = " + data_avg + "<br/>" +
+            "fps_canvas avg (max = 200) = " + fps_canvas.avg().toFixed(3) + "<br/>" +
+            "fps_video avg (max = 200) = " + fps_video.avg().toFixed(3) ;
+
+        line_r.append(day_t0 + t, data_avg_rgb[0]);
+        //line_g.append(day_t0 + t, data_avg_rgb[1]);
+        //line_b.append(day_t0 + t, data_avg_rgb[2]);
+
+    }
+    
+    video.addEventListener("play" , () =>{
+        rec_timer = setInterval(rec, 5);
+    });
+    
+    video.addEventListener("pause" , () =>{
+        clearInterval(rec_timer);
+    });
+    
+    document.getElementById('video_ctrl').addEventListener('click',
+        function(event) {
+            if (video.paused){
+                video.play();
+                event.currentTarget.innerHTML = "stop";
+                //rec_timer = setInterval(rec(), 100);
+            }else{
+                video.pause();
+                event.currentTarget.innerHTML = "start";
+            }
+    });
+
+    
+    // Trigger photo take
+//     document.getElementById('snap').addEventListener('click', function() {
+//         context.drawImage(video, 0, 0, videoSize[0], videoSize[1]);
+//         //var img = context.getImageData(x, y, 1, 1);
+//     });
+
+
+}, false);
+
+
+document.getElementById("monitor").getContext('2d').canvas.width  = window.innerWidth *0.95*.5;
+
+
+
+
+var smoothie = new SmoothieChart({
+    millisPerPixel:20,
+    timestampFormatter:SmoothieChart.timeFormatter
+});
+smoothie.streamTo(document.getElementById("monitor"), 50 /*delay for plot*/);
+// Data
+var line_r = new TimeSeries();
+// var line_g = new TimeSeries();
+// var line_b = new TimeSeries();
+// Add to SmoothieChart
+smoothie.addTimeSeries(line_r,  {lineWidth:2,strokeStyle:'#ff0000' });
+// smoothie.addTimeSeries(line_g,  {lineWidth:2,strokeStyle:'#00ff00' });
+// smoothie.addTimeSeries(line_b,  {lineWidth:2,strokeStyle:'#0000ff' });
+
+</script>
+
+<script>
+
+
+</script>
+
+</body></html>

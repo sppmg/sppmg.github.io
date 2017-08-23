@@ -116,6 +116,8 @@ window.addEventListener("DOMContentLoaded", function() {
         let h = videoSize[1]/10 ;
         let x = videoSize[0]/2 - w/2 ;
         let y = videoSize[1]/2 - h/2 ;
+        w=1;
+        h=1;
 
         context.drawImage(video, x,y,w,h);
         t = performance.now();
@@ -124,9 +126,9 @@ window.addEventListener("DOMContentLoaded", function() {
         let tmp_data_sum=0;
         for(let n_pixel=0; n_pixel < pixel_totel ; n_pixel++){
             tmp_data_sum = tmp_data_sum+
-            data[n_pixel*4]+ 0           // R
-            //data[n_pixel*4+1]+          // G
-            //data[n_pixel*4+2] ;         // B
+            data[n_pixel*4] +0          // R
+            /*data[n_pixel*4+1]+          // G
+            data[n_pixel*4+2] ;*/         // B
         }
         let data_avg = tmp_data_sum/(pixel_totel*3);
         document.getElementById("msg").innerHTML =
