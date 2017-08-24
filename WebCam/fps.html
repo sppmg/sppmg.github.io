@@ -20,14 +20,15 @@
 
 <!--hidden autoplay-->
 <video id="video" width="0" height="0" hidden ></video>
-<canvas id="canvas" width="0" height="0" hidden ></canvas>
-
 <br/>
+<!-- <canvas id="canvas" width="0" height="0"  ></canvas> -->
 <!--<button id="snap" class="sexyButton">Snap Photo</button>
 <br/>-->
 <!--<canvas id="canvasz" width="0" height="0" hidden></canvas><br/>-->
-<canvas id="monitor" width="300" height="100"  ></canvas><br/>
-<p id=msg></p>
+<!--<canvas id="monitor_r" width="300" height="50"  ></canvas><br/>-->
+<!--<canvas id="monitor_g" width="300" height="50"  ></canvas><br/>
+<canvas id="monitor_b" width="300" height="50"  ></canvas><br/>-->
+<p id=msg></p> <br/>
 <p id=msg-dev></p>
 <script>
 
@@ -53,6 +54,8 @@ function fps() {
 var fps_canvas = new fps ;
 var fps_video = new fps ;
 
+fps_video.pushData(10);
+
 // 效能測試： videoSize 會影響<video>大小， 但仍然是全解析畫面縮小。
 // 主要影響還是在計算的矩陣上。
 // rebin 無差
@@ -62,12 +65,13 @@ var fps_video = new fps ;
 // https://www.safaribooksonline.com/library/view/html5-canvas/9781449308032/ch04s08.html
 
 // Put event listeners into place
-var videoSize=[200, 200];// 80,60
+var videoSize = [200, 200];// 80,60
+var canvasSize = [20, 20];
 var skip_loop = false ;
 document.getElementById('video').width=videoSize[0];
 document.getElementById('video').height=videoSize[1];
-document.getElementById('canvas').width=videoSize[0];
-document.getElementById('canvas').height=videoSize[1];
+// document.getElementById('canvas').width=videoSize[0];
+// document.getElementById('canvas').height=videoSize[1];
 // document.getElementById('canvasz').width=videoSize[0];
 // document.getElementById('canvasz').height=videoSize[1];
 
@@ -79,7 +83,10 @@ var day_t0 = new Date().getTime() ;  // start time with date, unit = ms
 
 window.addEventListener("DOMContentLoaded", function() {
     // Grab elements, create settings, etc.
-    var canvas = document.getElementById('canvas');
+//     var canvas = document.getElementById('canvas');
+    var canvas = document.createElement('canvas');
+    canvas.width = canvasSize[0] ;
+    canvas.height = canvasSize[1] ;
     var context = canvas.getContext('2d');
     var video = document.getElementById('video');
     var mediaConfig =  {
@@ -88,8 +95,8 @@ window.addEventListener("DOMContentLoaded", function() {
             //facingMode: "user" , // prefer the front camera
             //frameRate: { min: 30 },
             facingMode: "environment" , // rear camera
-            width: { ideal: 240 },
-            height: { ideal: 320 }
+            width: { ideal: videoSize[0] },
+            height: { ideal: videoSize[1] }
         }
             
     };
@@ -99,7 +106,7 @@ window.addEventListener("DOMContentLoaded", function() {
     };
 
     // List cameras and microphones.
-
+    /*
     navigator.mediaDevices.enumerateDevices()
     .then(function(devices) {
     var s ;
@@ -112,6 +119,8 @@ window.addEventListener("DOMContentLoaded", function() {
     .catch(function(err) {
     console.log(err.name + ": " + err.message);
     });
+    */
+
     
     // Put video listeners into place
     if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -119,10 +128,10 @@ window.addEventListener("DOMContentLoaded", function() {
             video.src = window.URL.createObjectURL(stream);
             video.play();
         });
-        console.log(video)
     }
 
     /* Legacy code below! */
+    /*
     else if(navigator.getUserMedia) { // Standard
         navigator.getUserMedia(mediaConfig, function(stream) {
             video.src = stream;
@@ -139,6 +148,7 @@ window.addEventListener("DOMContentLoaded", function() {
             video.play();
         }, errBack);
     }
+    */
 
     var rec_timer = {};
     var data_avg_old = [0, 0, 0] ;
@@ -148,22 +158,27 @@ window.addEventListener("DOMContentLoaded", function() {
 //         document.getElementById("msg").innerHTML = "play" ;
         //if(video.paused){return;}
         
-        let w = videoSize[0]*.80 ; // videoSize[0]/10 ;
-        let h = videoSize[1]*.80 ; // videoSize[1]/10 ;
-        let x = videoSize[0]/2 - w/2 ;
-        let y = videoSize[1]/2 - h/2 ;
-        let rebin = 10 ;
+
 //         w=1;
 //         h=1;
-        document.getElementById('canvas').width  = w;
-        document.getElementById('canvas').height = h;
-        context.drawImage(video, 0,0,videoSize[0],videoSize[1]);
-        //context.drawImage(video, x,y,w,h);
-
+//         document.getElementById('canvas').width  = w;
+//         document.getElementById('canvas').height = h;
+//         canvas.width  = w;
+//         canvas.height = h;
+        //context.drawImage(video, 0,0,videoSize[0],videoSize[0]);
+        // context.drawImage(video, x,y,w,h);
+        context.drawImage(video, 0, 0, canvasSize[0], canvasSize[1]);
+        
         t_old = t;
         t = performance.now();
         fps_canvas.pushData( 1e3/(t-t_old) ) ;
-                
+        
+        let w = canvasSize[0]*.5 ; // canvasSize[0]/10 ; wh縮放影像
+        let h = canvasSize[1]*.5 ; // canvasSize[1]/10 ;
+        let x = canvasSize[0]/2 - w/2 ; // xy 為起始位置
+        let y = canvasSize[1]/2 - h/2 ;
+        let rebin = 1 ;
+        
         let data = context.getImageData(x,y,w,h).data
         let pixel_totel = data.length/4 ;
         let tmp_data_sum=[0, 0, 0]; // RGB
@@ -186,25 +201,44 @@ window.addEventListener("DOMContentLoaded", function() {
             data_avg_old = data_avg;
             fps_video.pushData( 1e3/(t-t_old_video) ) ;
             t_old_video = t
+            for(let i = 0; i < line_num; i++){
+                line[i].append(day_t0 + t, data_avg_rgb[i]);
+            }
         }
         document.getElementById("msg").innerHTML =
             "data len = " + data.length + "<br/>" +
-            "data avg = " + data_avg + "<br/>" +
-            "fps_canvas avg (max = 200) = " + fps_canvas.avg().toFixed(3) + "<br/>" +
-            "fps_video avg (max = 200) = " + fps_video.avg().toFixed(3) ;
+            "data avg = " + data_avg.toFixed(3) + "<br/>" +
+            "fps_canvas avg (max = 50) = " + fps_canvas.avg().toFixed(3) + "<br/>" +
+            "fps_video avg (max = 50) = " + fps_video.avg().toFixed(3) ;
 
-        line_r.append(day_t0 + t, data_avg_rgb[0]);
+        //line_r.append(day_t0 + t, data_avg_rgb[0]);
         //line_g.append(day_t0 + t, data_avg_rgb[1]);
         //line_b.append(day_t0 + t, data_avg_rgb[2]);
-
+        
     }
-    
+
+//     function rec_loop(){
+//         console.log(fps_video.avg());
+//         console.log(1/fps_video.avg());
+//         while(! video.paused){
+//             let video_interval = 1e3/fps_video.avg() ;
+// 
+//             if(fps_video.avg() < 1e-3 ){
+//                 rec_timer = setTimeout(console.log(video_interval), 100 );
+//             }else{
+//                 rec_timer = setTimeout(console.log(video_interval), video_interval*0.8 );
+//             }
+//         }
+//     }
+
     video.addEventListener("play" , () =>{
-        rec_timer = setInterval(rec, 5);
+        rec_timer = setInterval(rec, 20);
+        //rec_loop();
     });
     
     video.addEventListener("pause" , () =>{
         clearInterval(rec_timer);
+        //clearTimeout(rec_timer) ;
     });
     
     document.getElementById('video_ctrl').addEventListener('click',
@@ -230,30 +264,34 @@ window.addEventListener("DOMContentLoaded", function() {
 }, false);
 
 
-document.getElementById("monitor").getContext('2d').canvas.width  = window.innerWidth *0.95*.5;
+//document.getElementById("monitor_r").getContext('2d').canvas.width  = window.innerWidth *0.95*.5;
 
 
+var monitor_id=[ "monitor_r" , "monitor_g" , "monitor_b" ];
+var line_num = 1 ;
+var monitor = [] ;
+var smoothie = [] ;
+var line = [];
+var lineColor = ['#ff0000', '#00ff00', '#0000ff'];
+let p_msg = document.getElementById("msg") ;
+for(let i = 0; i < line_num; i++){
+    monitor.push(document.createElement("canvas"));
+    document.body.insertBefore(monitor[i], p_msg);
+    document.body.insertBefore(document.createElement("br"), p_msg);
+    monitor[i].getContext('2d').canvas.width  = window.innerWidth *0.95*.5;
+    monitor[i].getContext('2d').canvas.height = 100 ;
+    smoothie.push( new SmoothieChart({
+        millisPerPixel:20,
+        timestampFormatter:SmoothieChart.timeFormatter
+    }));
+    smoothie[i].streamTo(monitor[i], 50 /*delay for plot*/);
+    // Data
+    line.push(new TimeSeries());
+    // Add to SmoothieChart
+    smoothie[i].addTimeSeries(line[i],  {lineWidth:2, strokeStyle:lineColor[i] });
+}
 
 
-var smoothie = new SmoothieChart({
-    millisPerPixel:20,
-    timestampFormatter:SmoothieChart.timeFormatter
-});
-smoothie.streamTo(document.getElementById("monitor"), 50 /*delay for plot*/);
-// Data
-var line_r = new TimeSeries();
-// var line_g = new TimeSeries();
-// var line_b = new TimeSeries();
-// Add to SmoothieChart
-smoothie.addTimeSeries(line_r,  {lineWidth:2,strokeStyle:'#ff0000' });
-// smoothie.addTimeSeries(line_g,  {lineWidth:2,strokeStyle:'#00ff00' });
-// smoothie.addTimeSeries(line_b,  {lineWidth:2,strokeStyle:'#0000ff' });
 
 </script>
-
-<script>
-
-
-</script>
-
 </body></html>
