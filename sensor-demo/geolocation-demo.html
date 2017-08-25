@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+    <meta http-equiv="content-type" content="text/html;charset=UTF-8" />
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+<body>
+    From
+    <a href="https://developer.mozilla.org/en-US/docs/Web/API/Geolocation/Using_geolocation#Prompting_for_permission">https://developer.mozilla.org/en-US/docs/Web/API/Geolocation/Using_geolocation#Prompting_for_permission</a>.
+    Spinner from
+    <a href="http://spiffygif.com/">http://spiffygif.com/</a>.
+    <br>
+    Go! Your current location is:
+    <div class="content">
+        <img src="spinner.gif"> Getting location...
+    </div>
+    <script type="text/javascript" charset="utf-8">
+        var pos;
+        function success(position) {
+            if ($('.content img')) {
+                $('.content').html('');
+            }
+            $('.content').append('' + position.coords.latitude + ', ' + position.coords.longitude + "[" + position.coords.accuracy + "m]" + "<br>");
+        }
+        function error() {
+            alert('geolocation fail');
+        }
+        // Geolocation available
+        if ("geolocation" in navigator) {
+
+            // Start getting location on window load
+            navigator.geolocation.getCurrentPosition(success, error);
+
+            // Keep watching the position over time
+            var watch = navigator.geolocation.watchPosition(success, error);
+
+        } else {
+            error();
+
+            // Enter a location and geocode
+        }
+    </script>
+</body>
+</html>

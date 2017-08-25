@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+    <meta http-equiv="content-type" content="text/html;charset=UTF-8" />
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+<body>
+    <script type="text/javascript" charset="utf-8">
+        var counter = 0;
+        var timeout;
+        window.addEventListener('devicemotion', function(event) {
+            var accel = event.acceleration;
+            if (accel.x > 7 || accel.y > 7 || accel.z > 7) {
+                //$('.content').append('' + accel.x.toFixed(1) + ',' + accel.y.toFixed(1) + ',' + accel.z.toFixed(1) + '<br>');
+                counter++;
+                $('.content').append(counter);
+                timeout = setTimeout(function() {
+                    if (counter < 4) {
+                        counter = 0;
+                    }
+                }, 800);
+
+            }
+            if (counter > 4) {
+                $('.content').append('Magic 8 ball says: you rock!');
+                counter = 0;
+                clearInterval(timeout);
+            }
+        });
+
+    //window.ondevicemotion = function(event) {
+    //var motion = event.accelerationIncludingGravity;
+    //document.write("" + motion.x + ", " + motion.y + ", " + motion.z + "<br>");
+    //}
+
+    </script>
+    Here we go
+    <div class="content">
+    </div>
+</body>
+</html>

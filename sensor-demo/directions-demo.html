@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+    <meta http-equiv="content-type" content="text/html;charset=UTF-8" />
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+<body>
+    <a href="https://developer.apple.com/library/ios/featuredarticles/iPhoneURLScheme_Reference/MapLinks/MapLinks.html">https://developer.apple.com/library/ios/featuredarticles/iPhoneURLScheme_Reference/MapLinks/MapLinks.html</a>.
+    From Apple's docs; this falls back to Google maps on non-Mac/iOS devices
+    so it's essentially cross browser compatible.
+    <div class="content">
+        <ul>
+            <li><a href="http://maps.apple.com/?daddr=James%20Cook%20University,%20Townsville%20,%20Australia&saddr=Paddington Terrace, Douglas, Australia">Driving Direction (Home to JCU)</a></li>
+            <li><a href="http://maps.apple.com/?daddr=James%20Cook%20University,%20Townsville%20,%20Australia">Driving Direction (to JCU)</a></li>
+            <li><a href="http://maps.apple.com/?q=James Cook University,Townsville, Australia">Query for JCU</a></li>
+            <li><a href="http://maps.apple.com/?daddr=James%20Cook%20University,%20Townsville%20,%20Australia" id="dynamic">Driving directions (from current location to JCU)</a></li>
+    </div>
+    <script type="text/javascript" charset="utf-8">
+        var pos;
+        function success(position) {
+            pos = position;
+        }
+        function error() {
+            console.log('you fail');
+        }
+        // Geolocation available
+        if ("geolocation" in navigator) {
+
+            // Start getting location on window load
+            navigator.geolocation.getCurrentPosition(success, error);
+
+            $('#dynamic').click(function() {
+                this.href += '&saddr=' + pos.coords.latitude + ',' + pos.coords.longitude;
+            });
+
+        } else {
+            error();
+        }
+    </script>
+</body>
+</html>
